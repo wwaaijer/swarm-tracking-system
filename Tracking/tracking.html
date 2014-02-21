@@ -1,0 +1,293 @@
+<html>
+    <head>
+        <title></title>
+        <script src="slider.js" type="text/javascript"></script>
+        <link rel="stylesheet" href="slider.css" type="text/css" />
+        <style type="text/css">
+            #left {
+                float: left;
+                width: 600px;
+                display: block;
+            }
+            h3 {
+                margin-bottom: 3px;
+            }
+        </style>
+        <script src="functions.js" type="text/javascript"></script>
+        <script type="text/javascript">
+            fuzzy = 2;
+            track = false;
+            function init() {
+                canvas = document.createElement("canvas");
+                video = document.createElement("video");
+                width = 0;
+                height = 0;
+                if (!canvas.getContext)
+                    return console.log("Canvas not supported!");
+                if (!navigator.getUserMedia)
+                    return console.log("getUserMedia not supported!");
+
+                context = canvas.getContext("2d");
+
+                leftDiv = document.getElementById("sliders_left");
+                valText = document.getElementById("val");
+
+                l_r_slider = slider();
+                l_g_slider = slider();
+                l_b_slider = slider();
+
+                leftDiv.appendChild(l_r_slider.wrapper);
+                leftDiv.appendChild(l_g_slider.wrapper);
+                leftDiv.appendChild(l_b_slider.wrapper);
+
+                rightDiv = document.getElementById("sliders_right");
+
+                r_r_slider = slider();
+                r_g_slider = slider();
+                r_b_slider = slider();
+
+                rightDiv.appendChild(r_r_slider.wrapper);
+                rightDiv.appendChild(r_g_slider.wrapper);
+                rightDiv.appendChild(r_b_slider.wrapper);
+
+                navigator.getUserMedia({video: true, audio: false},
+                function(userMediaStream) {
+                    addListener(video, "playing", setVideoSize);
+                    video.autoplay = 1;
+                    video.src = window.URL.createObjectURL(userMediaStream);
+                },
+                        function(e) {
+                            console.log("Getting user video media failed!", e);
+                        }
+                );
+
+                function setVideoSize() {
+                    if (video.videoWidth) {
+                        removeListener(video, "playing", setVideoSize);
+
+                        canvas.width = width = video.videoWidth;
+                        canvas.height = height = video.videoHeight;
+
+                        console.log("video: " + width + "x" + height);
+
+                        var colors = localStorage['colors'] ? JSON.parse(localStorage['colors']) : false;
+                        if (colors) {
+                            l_r_slider.setMin(colors.lrmin);
+                            l_r_slider.setMax(colors.lrmax);
+                            l_g_slider.setMin(colors.lgmin);
+                            l_g_slider.setMax(colors.lgmax);
+                            l_b_slider.setMin(colors.lbmin);
+                            l_b_slider.setMax(colors.lbmax);
+                            r_r_slider.setMin(colors.rrmin);
+                            r_r_slider.setMax(colors.rrmax);
+                            r_g_slider.setMin(colors.rgmin);
+                            r_g_slider.setMax(colors.rgmax);
+                            r_b_slider.setMin(colors.rbmin);
+                            r_b_slider.setMax(colors.rbmax);
+                        }
+
+                        setInterval(storeColors, 10000);
+
+                        window.requestAnimationFrame(draw);
+                    } else {
+                        window.requestAnimationFrame(setVideoSize);
+                    }
+                }
+
+                draw = function() {
+                    context.drawImage(video, 0, 0);
+
+                    frame = context.getImageData(0, 0, width, height);
+                    leftGroups = {open: [], closed: []}, rightGroups = {open: [], closed: []}
+                    var x = 0, y = 0;
+
+                    for (var i = 0; i < frame.data.length; i++) {
+                        var r = frame.data[i++], g = frame.data[i++], b = frame.data[i++];
+
+                        if (r >= l_r_slider.minimum && r <= l_r_slider.maximum && g >= l_g_slider.minimum && g <= l_g_slider.maximum && b >= l_b_slider.minimum && b <= l_b_slider.maximum) {
+                            if (track) addCoordsToGroups(leftGroups, x, y);
+
+                            frame.data[i - 3] = 0;
+                            frame.data[i - 2] = 255;
+                            frame.data[i - 1] = 0;
+                        } else if (r >= r_r_slider.minimum && r <= r_r_slider.maximum && g >= r_g_slider.minimum && g <= r_g_slider.maximum && b >= r_b_slider.minimum && b <= r_b_slider.maximum) {
+                            if (track) addCoordsToGroups(rightGroups, x, y);
+
+                            frame.data[i - 3] = 255;
+                            frame.data[i - 2] = 0;
+                            frame.data[i - 1] = 0;
+                        }
+                        x++;
+                        if (x >= width) {
+                            updateGroupRows(leftGroups, y);
+                            updateGroupRows(rightGroups, y);
+                            x -= width;
+                            y++;
+                        }
+                    }
+
+                    context.putImageData(frame, 0, 0);
+
+                    findLargestGroup(leftGroups, context);
+                    findLargestGroup(rightGroups, context);
+
+                    horizontal = leftGroups.largest.x - rightGroups.largest.x;
+                    vertical = leftGroups.largest.y - rightGroups.largest.y;
+
+                    x = rightGroups.largest.x + (horizontal / 2) | 0;
+                    y = rightGroups.largest.y + (vertical / 2) | 0;
+
+                    rad = Math.atan(vertical / horizontal);
+                    degr = rad / Math.PI * 180
+
+                    if (horizontal < 0) {
+                        degr += 180;
+                        rad += Math.PI;
+                    } else if (vertical < 0) {
+                        degr += 360;
+                        rad += Math.PI + Math.PI;
+                    }
+
+                    context.fillStyle = "rgb(0,0,255)";
+                    context.fillRect(x - 2, y - 2, 4, 4);
+
+                    context.save();
+                    context.strokeStyle = "rgb(0,0,255)";
+                    context.lineWidth = 2;
+                    context.lineCap = "round";
+                    context.lineJoin = "round";
+                    context.translate(x, y);
+                    context.rotate(rad);
+                    context.beginPath();
+                    context.moveTo(0, 0)
+                    context.lineTo(0, 30);
+                    context.stroke();
+                    context.beginPath();
+                    //context.moveTo(0, 0)
+                    context.arc(0, 0, 30, 0, Math.PI+Math.PI);
+                    context.stroke();
+                    context.restore();
+
+                    degr = degr | 0;
+
+                    valText.innerHTML = degr + " graden";
+
+                    window.requestAnimationFrame(draw);
+                }
+                document.body.appendChild(canvas);
+
+                storeColors = function() {
+                    localStorage['colors'] = JSON.stringify({
+                        lrmin: l_r_slider.minimum,
+                        lrmax: l_r_slider.maximum,
+                        lgmin: l_g_slider.minimum,
+                        lgmax: l_g_slider.maximum,
+                        lbmin: l_b_slider.minimum,
+                        lbmax: l_b_slider.maximum,
+                        rrmin: r_r_slider.minimum,
+                        rrmax: r_r_slider.maximum,
+                        rgmin: r_g_slider.minimum,
+                        rgmax: r_g_slider.maximum,
+                        rbmin: r_b_slider.minimum,
+                        rbmax: r_b_slider.maximum
+                    });
+                }
+
+                addCoordsToGroups = function(groups, x, y) {
+                    var assigned = false;
+                    for (var c = 0; c < groups.open.length; c++) {
+                        var group = groups.open[c];
+                        if (x >= group.row.limitLeft && x <= group.row.limitRight) {
+                            if (!assigned) {
+                                if (group.row.foundLeft < x)
+                                    group.row.foundLeft = x;
+                                group.row.foundRight = x;
+                                if (group.row.limitRight < x + fuzzy)
+                                    group.row.limitRight = x + fuzzy;
+                                group.count++;
+                                assigned = group; // Volgende groepen laten weten dat deze pixel al in een groep zit voor eventueel samenvoegen
+                                //console.log("   joined group starting at "+group.foundLeft+","+group.foundTop+" ("+(group.foundRight-group.foundLeft+1)+"x"+(group.foundBottom-group.foundTop+1)+")");
+                            } else {
+                                if (group.foundTop < assigned.foundTop)
+                                    assigned.foundTop = group.foundTop;
+                                if (group.foundLeft < assigned.foundLeft)
+                                    assigned.foundLeft = group.foundLeft;
+                                assigned.count += group.count;
+                                groups.open.splice(c, 1);
+                                c--;
+                            }
+                        }
+                    }
+                    if (!assigned) {
+                        groups.open.push({
+                            count: 1,
+                            foundTop: y,
+                            foundLeft: x,
+                            foundRight: x,
+                            foundBottom: y,
+                            limitBottom: y + fuzzy,
+                            row: {
+                                foundLeft: x,
+                                foundRight: x,
+                                limitLeft: x,
+                                limitRight: x + fuzzy
+                            }
+                        });
+                    }
+                }
+
+                updateGroupRows = function(groups, y) {
+                    for (var c = 0; c < groups.open.length; c++) {
+                        var group = groups.open[c];
+                        if (group.row.foundLeft >= 0) {
+                            if (group.row.foundLeft < group.foundLeft)
+                                group.foundLeft = group.row.foundLeft;
+                            if (group.row.foundRight > group.foundRight)
+                                group.foundRight = group.row.foundRight;
+                            group.foundBottom = y;
+                            group.limitBottom = y + fuzzy;
+                            group.row.limitLeft = group.row.foundLeft > fuzzy ? group.row.foundLeft - fuzzy : 0;
+                            group.row.limitRight = group.row.foundRight < width - 1 - fuzzy ? group.row.foundRight + fuzzy : width - 1;
+                            group.row.foundLeft = -1;
+                        } else {
+                            if (y > group.limitBottom) {
+                                groups.closed.push(group);
+                                groups.open.splice(c, 1);
+                                c--;
+                            }
+                        }
+                    }
+                }
+
+                findLargestGroup = function(groups, context) {
+                    groups.largest = {count: -1};
+                    for (var c = 0; c < groups.open.length; c++)
+                        if (groups.open[c].count > groups.largest.count)
+                            groups.largest = groups.open[c];
+                    for (var c = 0; c < groups.closed.length; c++)
+                        if (groups.closed[c].count > groups.largest.count)
+                            groups.largest = groups.closed[c];
+
+                    if (groups.largest.count < 1)
+                        return;
+
+                    groups.largest.x = (groups.largest.foundLeft + (groups.largest.foundRight - groups.largest.foundLeft + 1) / 2) | 0;
+                    groups.largest.y = (groups.largest.foundTop + (groups.largest.foundBottom - groups.largest.foundTop + 1) / 2) | 0;
+
+                    context.fillStyle = "rgb(0,0,255)";
+                    context.fillRect(groups.largest.x - 2, groups.largest.y - 2, 4, 4);
+                }
+            }
+        </script>
+    </head>
+    <body onload="init();">
+        <div id="left">
+            <h3>Links:</h3>
+            <div id="sliders_left"></div>
+            <h3>Rechts:</h3>
+            <div id="sliders_right"></div>
+            <button onclick="track = !track;">Track toggle</button>
+            <h3 id="val"></h3>
+        </div>
+    </body>
+</html>
