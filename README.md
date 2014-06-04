@@ -5,10 +5,11 @@ If you are interested in the code or our project in general you can find more in
 
 http://swarmts.blogspot.com
 
+Live demo: http://wwaaijer.github.io/swarm_tracking_system/tracker.html
+
 **/tracking**
 
 	The track and control system of this project.
-	Live demo: http://wwaaijer.github.io/swarm_tracking_system/tracker.html
 
 
 
