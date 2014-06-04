@@ -5,14 +5,23 @@ If you are interested in the code or our project in general you can find more in
 
 http://swarmts.blogspot.com
 
-/tracking
+**/tracking**
+
 	The track and control system of this project.
 
-doodlebot.ino
+
+
+**doodlebot.ino**
+
 	The software on the doodlebot.
 
-PCB DoodleBot Rev4.ewprj
+
+**PCB DoodleBot Rev4.ewprj**
+
 	The PCB design for the doodlebot
 
-server.js
+
+
+**server.js**
+
 	An Node.js application for the communication between the tracker and the doodlebot
