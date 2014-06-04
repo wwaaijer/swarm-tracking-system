@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Swarm tracking</title>
+        <script src="multi_browser.js" type="text/javascript"></script>
+        <script src="http://localhost:1332/socket.io/socket.io.js" type="text/javascript"></script>
+        <script src="http.js" type="text/javascript"></script>
+        <script src="videostream.js" type="text/javascript"></script>
+        <script src="color_boundaries.js" type="text/javascript"></script>
+        <script src="mode_manager.js" type="text/javascript"></script>
+        <script src="modes.js" type="text/javascript"></script>
+        <script src="movement.js" type="text/javascript"></script>
+        <script src="initial_calibration.js" type="text/javascript"></script>
+        <script type="text/javascript">
+            var frameProcessFunc,
+                    frameData,
+                    cEl_viewport,
+                    c2d_viewport,
+                    cEl_video,
+                    c2d_video,
+                    prevFrameTime;
+
+            addListener(window, "load", function() {
+                cEl_viewport = document.getElementById("viewport");
+                cEl_video = document.createElement("canvas");
+                mode_manager.modes["main"].el = document.getElementById("main_menu");
+                mode_manager.modes["base_color"].el = document.getElementById("base_color_menu");
+                mode_manager.modes["front_color"].el = document.getElementById("front_color_menu");
+
+                // Is canvas supported?
+                if (typeof cEl_video.getContext == "undefined")
+                    return console.log("canvas 2d redering context not supported!");
+
+                c2d_viewport = cEl_viewport.getContext("2d");
+                c2d_video = cEl_video.getContext("2d");
+
+                mode_manager.to("main");
+
+                // Videostream already playing?
+                if (videostream.playing) {
+                    onVideostreamStart();
+                } else {
+                    videostream.onStreamStart = onVideostreamStart;
+                }
+
+                // Copy dimensions and request a videoframe call
+                function onVideostreamStart() {
+                    cEl_video.width = cEl_viewport.width = videostream.width;
+                    cEl_video.height = cEl_viewport.height = videostream.height;
+                    window.requestAnimationFrame(getVideoFrame);
+                }
+
+                // Get current videoframe, running 30fps.
+                function getVideoFrame(time) {
+                    // Refreshrate of the videostream is 30fps, no need to check
+                    // 60fps (refreshrate of the monitor) which 
+                    // requestAnimationFrame will try to reach.
+                    if (time - prevFrameTime < 30)
+                        return window.requestAnimationFrame(getVideoFrame);
+
+                    // Call the current frame processing function
+                    // Depends on which mode is active
+                    frameProcessFunc();
+
+                    // Store the time this frame started and request a new
+                    // function call.
+                    prevFrameTime = time;
+                    window.requestAnimationFrame(getVideoFrame);
+                }
+            });
+        </script>
+        <style>
+            html, body {
+                padding: 0;
+                margin: 0 0 -10px;
+                width: 100%;
+                height: 100%;
+            }
+            #menu_wrap {
+                padding: 10px;
+                width: 600px;
+                height: 90%;
+                overflow-y: auto;
+            }
+            #viewport {
+                position: absolute;
+                left: 620px;
+                top: 10px;
+            }
+            .menu h1, .centered {
+                text-align: center;
+            }
+
+        </style>
+    </head>
+    <body>
+        <div id="menu_wrap">
+            <div class="menu" id="main_menu">
+                <h1>Options</h1>
+                <p class="centered">
+                    <button onclick="mode_manager.to('base_color');">Set base color</button><br/>
+                    <button onclick="mode_manager.to('front_color');">Set front color</button><br/>
+                    <button onclick="initial_calibration();">Initial calibration</button><br/>
+                </p>
+            </div>
+            <div class="menu" id="base_color_menu">
+                <h1>Set base color</h1>
+                <h3>RGB</h3>
+                <table>
+                    <tr>
+                        <td width="50">Red</td>
+                        <td><input type="range" id="base_r_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="base_r_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Green</td>
+                        <td><input type="range" id="base_g_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="base_g_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Blue</td>
+                        <td><input type="range" id="base_b_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="base_b_t">0</td>
+                    </tr>
+                </table>
+                <h3>Deviations</h3>
+                <table>
+                    <tr>
+                        <td width="50">Lower Light boundary</td>
+                        <td><input type="range" id="base_l_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="base_l_t">0</td>
+                    </tr>
+                    <tr>
+                        <td width="50">Upper Light boundary</td>
+                        <td><input type="range" id="base_u_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="base_u_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Color</td>
+                        <td><input type="range" id="base_c_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="base_c_t">0</td>
+                    </tr>
+                </table>
+                <p class="centered"><button onclick="mode_manager.to('main');">Save</button></p>
+            </div>
+            <div class="menu" id="front_color_menu">
+                <h1>Set front color</h1>
+                <h3>RGB</h3>
+                <table>
+                    <tr>
+                        <td width="50">Red</td>
+                        <td><input type="range" id="front_r_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="front_r_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Green</td>
+                        <td><input type="range" id="front_g_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="front_g_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Blue</td>
+                        <td><input type="range" id="front_b_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="front_b_t">0</td>
+                    </tr>
+                </table>
+                <h3>Deviations</h3>
+                <table>
+                    <tr>
+                        <td width="50">Lower Light boundary</td>
+                        <td><input type="range" id="front_l_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="front_l_t">0</td>
+                    </tr>
+                    <tr>
+                        <td width="50">Upper Light boundary</td>
+                        <td><input type="range" id="front_u_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td width="50" id="front_u_t">0</td>
+                    </tr>
+                    <tr>
+                        <td>Color</td>
+                        <td><input type="range" id="front_c_i" max="255" min="0" step="1" style="width: 400px;"></td>
+                        <td id="front_c_t">0</td>
+                    </tr>
+                </table>
+                <p class="centered"><button onclick="mode_manager.to('main');">Save</button></p>
+            </div>
+        </div>
+        <canvas id="viewport"></canvas>
+    </body>
+</html>
