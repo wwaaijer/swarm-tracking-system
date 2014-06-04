@@ -5,6 +5,8 @@ If you are interested in the code or our project in general you can find more in
 
 http://swarmts.blogspot.com
 
+[![Tracking in action](http://img.youtube.com/vi/5zwWCaSlW8w/0.jpg)](http://www.youtube.com/watch?v=5zwWCaSlW8w)
+
 Live demo: http://wwaaijer.github.io/swarm_tracking_system/tracker.html
 
 **/tracking**
